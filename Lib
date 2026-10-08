@@ -4978,26 +4978,26 @@ function Library:CreateWindow(WindowInfo)
                     return
                 end
 
-                local ContentScaleValue = ContentScale and ContentScale.Scale or 1
+                local ContentScaleValue = (ContentScale and ContentScale.Scale > 0) and ContentScale.Scale or 1
 
                 if Groupbox.Collapsed then
-                    local CollapsedHeight = 39 * Library.DPIScale * ContentScaleValue
+                    local CollapsedHeight = 39 * Library.DPIScale
                     Background.Size = UDim2.new(1, 0, 0, CollapsedHeight)
-                    GroupboxHolder.Size = UDim2.new(1, -4 * ContentScaleValue, 0, math.max(0, CollapsedHeight - 4 * Library.DPIScale * ContentScaleValue))
+                    GroupboxHolder.Size = UDim2.new(1, -4, 0, math.max(0, CollapsedHeight - 4 * Library.DPIScale))
                     return
                 end
 
                 local ContentHeight = math.ceil(GroupboxList.AbsoluteContentSize.Y / ContentScaleValue)
                 local HeaderHeight = 35 * Library.DPIScale
                 local PaddingHeight = 14 * Library.DPIScale
-                local BaseHeight = math.max(39 * Library.DPIScale, HeaderHeight + PaddingHeight + ContentHeight + (4 * Library.DPIScale))
-                local Height = BaseHeight * ContentScaleValue
-                local BorderSize = 4 * Library.DPIScale * ContentScaleValue
-                local ScaledHeaderHeight = HeaderHeight * ContentScaleValue
+                local Height = math.max(
+                    39 * Library.DPIScale,
+                    HeaderHeight + PaddingHeight + ContentHeight + (4 * Library.DPIScale)
+                )
 
                 Background.Size = UDim2.new(1, 0, 0, Height)
-                GroupboxHolder.Size = UDim2.new(1, -4 * ContentScaleValue, 0, math.max(0, Height - BorderSize))
-                GroupboxContainer.Size = UDim2.new(1, 0, 0, math.max(0, Height - ScaledHeaderHeight))
+                GroupboxHolder.Size = UDim2.new(1, -4, 0, math.max(0, Height - 4 * Library.DPIScale))
+                GroupboxContainer.Size = UDim2.new(1, 0, 0, math.max(0, Height - HeaderHeight))
             end
 
             function Groupbox:SetCollapsed(Collapsed: boolean)
@@ -5127,7 +5127,7 @@ function Library:CreateWindow(WindowInfo)
                     Elements = {},
                 }
 
-                local function ShowTab()
+                function Tab:Show()
                     if Tabbox.ActiveTab then
                         Tabbox.ActiveTab:Hide()
                     end
@@ -5142,8 +5142,6 @@ function Library:CreateWindow(WindowInfo)
                     Tab:Resize()
                 end
 
-                Tab.Show = ShowTab
-
                 function Tab:Hide()
                     Button.BackgroundTransparency = 0
                     Button.TextTransparency = 0.5
@@ -5157,17 +5155,17 @@ function Library:CreateWindow(WindowInfo)
                     if Tabbox.ActiveTab ~= Tab then
                         return
                     end
-                    local ContentScaleValue = ContentScale and ContentScale.Scale or 1
+                    local ContentScaleValue = (ContentScale and ContentScale.Scale > 0) and ContentScale.Scale or 1
                     local ContentHeight = List.AbsoluteContentSize.Y / ContentScaleValue
-                    local BaseHeight = ContentHeight + 53 * Library.DPIScale
-                    Background.Size = UDim2.new(1, 0, 0, BaseHeight * ContentScaleValue)
+                    local Height = ContentHeight + 53 * Library.DPIScale
+                    Background.Size = UDim2.new(1, 0, 0, Height)
                 end
 
                 if not Tabbox.ActiveTab then
-                    ShowTab()
+                    Tab:Show()
                 end
 
-                Button.MouseButton1Click:Connect(ShowTab)
+                Button.MouseButton1Click:Connect(Tab.Show)
 
                 setmetatable(Tab, BaseGroupbox)
 
@@ -5212,7 +5210,7 @@ function Library:CreateWindow(WindowInfo)
             end
         end
 
-        local function ShowTab()
+        function Tab:Show()
             if Library.ActiveTab then
                 Library.ActiveTab:Hide()
             end
@@ -5233,8 +5231,6 @@ function Library:CreateWindow(WindowInfo)
             Library.ActiveTab = Tab
         end
 
-        Tab.Show = ShowTab
-
         function Tab:Hide()
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 1,
@@ -5253,7 +5249,7 @@ function Library:CreateWindow(WindowInfo)
         end
 
         if not Library.ActiveTab then
-            ShowTab()
+            Tab:Show()
         end
 
         TabButton.MouseEnter:Connect(function()
@@ -5262,7 +5258,7 @@ function Library:CreateWindow(WindowInfo)
         TabButton.MouseLeave:Connect(function()
             Tab:Hover(false)
         end)
-        TabButton.MouseButton1Click:Connect(ShowTab)
+        TabButton.MouseButton1Click:Connect(Tab.Show)
 
         Library.Tabs[Name] = Tab
 
@@ -5416,7 +5412,7 @@ function Library:CreateWindow(WindowInfo)
             end
         end
 
-        local function ShowTab()
+        function Tab:Show()
             if Library.ActiveTab then
                 Library.ActiveTab:Hide()
             end
@@ -5437,8 +5433,6 @@ function Library:CreateWindow(WindowInfo)
             Library.ActiveTab = Tab
         end
 
-        Tab.Show = ShowTab
-
         function Tab:Hide()
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 1,
@@ -5457,7 +5451,7 @@ function Library:CreateWindow(WindowInfo)
         end
 
         if not Library.ActiveTab then
-            ShowTab()
+            Tab:Show()
         end
 
         TabButton.MouseEnter:Connect(function()
@@ -5466,7 +5460,7 @@ function Library:CreateWindow(WindowInfo)
         TabButton.MouseLeave:Connect(function()
             Tab:Hover(false)
         end)
-        TabButton.MouseButton1Click:Connect(ShowTab)
+        TabButton.MouseButton1Click:Connect(Tab.Show)
 
         Tab.Container = TabContainer
         setmetatable(Tab, BaseGroupbox)
@@ -5711,7 +5705,7 @@ function Library:CreateWindow(WindowInfo)
                     if Tabbox.ActiveTab == Tab then
                         Tab:Resize()
                     elseif VisibleElements[Tabbox.ActiveTab] == 0 then
-                        ShowTab()
+                        Tab:Show()
                     end
                 end
             end
