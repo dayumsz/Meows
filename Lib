@@ -4173,7 +4173,6 @@ function Library:CreateWindow(WindowInfo)
 
     local MainFrame
     local MainScale
-    local ResponsiveScale
     local SearchBox
     local ResizeButton
     local Tabs
@@ -4211,40 +4210,6 @@ function Library:CreateWindow(WindowInfo)
             Parent = MainFrame,
         })
 
-        -- ResponsiveScale is separate from MainScale so the open/close animation
-        -- can keep using MainScale without fighting the resize system.
-        ResponsiveScale = New("UIScale", {
-            Scale = 1,
-            Parent = MainFrame,
-        })
-
-        local BaseWindowWidth = math.max(1, WindowInfo.Size.X.Offset)
-        local BaseWindowHeight = math.max(1, WindowInfo.Size.Y.Offset)
-
-        local function UpdateResponsiveScale()
-            if not MainFrame or not MainFrame.Parent then
-                return
-            end
-
-            -- Use the raw UDim2 size instead of AbsoluteSize: AbsoluteSize already
-            -- includes ResponsiveScale and would otherwise create a feedback loop.
-            local ParentSize = ScreenGui.AbsoluteSize
-            local RawWidth = MainFrame.Size.X.Scale * ParentSize.X + MainFrame.Size.X.Offset
-            local RawHeight = MainFrame.Size.Y.Scale * ParentSize.Y + MainFrame.Size.Y.Offset
-            if RawWidth <= 0 or RawHeight <= 0 then
-                return
-            end
-
-            -- Shrink the whole contents when the window becomes smaller,
-            -- using the limiting dimension so nothing keeps its old vertical size.
-            local WidthScale = RawWidth / BaseWindowWidth
-            local HeightScale = RawHeight / BaseWindowHeight
-            local Scale = math.min(WidthScale, HeightScale)
-
-            -- Keep the UI usable and prevent it from becoming comically large.
-            Scale = math.clamp(Scale, 0.65, 1.15)
-            ResponsiveScale.Scale = Scale
-        end
         do
             local Lines = {
                 {
@@ -4426,11 +4391,9 @@ function Library:CreateWindow(WindowInfo)
         end
 
         local KeybindButton = CreateControl(1, 92, KeyText())
-        local MinimizeButton = CreateControl(2, 30, "", "minus")
-        local CloseButton = CreateControl(3, 30, "", "x")
+        local MinimizeButton = CreateControl(2, 30, "-", "minus")
+        local CloseButton = CreateControl(3, 30, "X", "x")
 
-        -- The keybind controls visibility/minimization.  Keep it separate from
-        -- the window's internal close action so closing always destroys the UI.
         Library.MinimizeKeybind = WindowInfo.MinimizeKeybind or Library.ToggleKeybind
 
         function Library:SetToggleKeybind(Key: Enum.KeyCode)
@@ -4474,11 +4437,12 @@ function Library:CreateWindow(WindowInfo)
             Rebinding = false
         end)
 
-        MinimizeButton.Activated:Connect(function()
-            Library:Minimize()
+        MinimizeButton.MouseButton1Click:Connect(function()
+            Library:Toggle(false)
+            Library:Notify("Press " .. KeyText() .. " to reopen", 3)
         end)
 
-        CloseButton.Activated:Connect(function()
+        CloseButton.MouseButton1Click:Connect(function()
             Library:Unload()
         end)
 
@@ -4532,49 +4496,8 @@ function Library:CreateWindow(WindowInfo)
                         Tab:Resize(true)
                     end
                 end
-
-                -- Roblox updates AbsoluteSize/AbsoluteContentSize on the next
-                -- layout pass, so run a second pass after the new dimensions settle.
-                UpdateResponsiveScale()
-
-                task.defer(function()
-                    if not (MainFrame and MainFrame.Parent) then
-                        return
-                    end
-                    UpdateResponsiveScale()
-                    for _, Tab in pairs(Library.Tabs) do
-                        if Tab.RefreshLayout then
-                            Tab:RefreshLayout()
-                        end
-                    end
-                    UpdateResponsiveScale()
-                end)
             end)
         end
-
-        -- Also refresh when the window is resized by code, DPI changes, or another
-        -- UI constraint. This keeps columns, groupboxes and controls in sync.
-        UpdateResponsiveScale()
-
-        Library:GiveSignal(MainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-            if not MainFrame.Visible then
-                return
-            end
-            task.defer(function()
-                if not (MainFrame and MainFrame.Parent and MainFrame.Visible) then
-                    return
-                end
-                UpdateResponsiveScale()
-                for _, Tab in pairs(Library.Tabs) do
-                    if Tab.RefreshLayout then
-                        Tab:RefreshLayout()
-                    else
-                        Tab:Resize(true)
-                    end
-                end
-                UpdateResponsiveScale()
-            end)
-        end))
 
         New("ImageLabel", {
             Image = ResizeIcon and ResizeIcon.Url or "",
@@ -4684,6 +4607,10 @@ function Library:CreateWindow(WindowInfo)
                 Size = UDim2.fromScale(1, 1),
                 Visible = false,
                 Parent = Container,
+            })
+            local ContentScale = New("UIScale", {
+                Scale = 1,
+                Parent = TabContainer,
             })
 
             TabLeft = New("ScrollingFrame", {
@@ -4796,6 +4723,7 @@ function Library:CreateWindow(WindowInfo)
         end
 
         local Tab = {
+            ContentScale = ContentScale,
             Groupboxes = {},
             Tabboxes = {},
             Sides = {
@@ -4886,14 +4814,15 @@ function Library:CreateWindow(WindowInfo)
             end
         end
 
-        -- Recalculate every responsive element after the main window changes size.
         function Tab:RefreshLayout()
-            self:Resize(true)
+            if self.ContentScale then
+                self.ContentScale.Scale = 1
+            end
 
+            self:Resize(true)
             for _, Groupbox in pairs(self.Groupboxes) do
                 Groupbox:Resize()
             end
-
             for _, Tabbox in pairs(self.Tabboxes) do
                 for _, SubTab in pairs(Tabbox.Tabs) do
                     SubTab:Resize()
@@ -4902,6 +4831,19 @@ function Library:CreateWindow(WindowInfo)
                     end
                 end
             end
+
+            task.defer(function()
+                if not (self.ContentScale and TabContainer and TabContainer.Parent) then
+                    return
+                end
+                local AvailableHeight = math.max(1, TabContainer.AbsoluteSize.Y)
+                local LeftHeight = self.Sides[1] and self.Sides[1].AbsoluteCanvasSize.Y or 0
+                local RightHeight = self.Sides[2] and self.Sides[2].AbsoluteCanvasSize.Y or 0
+                local DesiredHeight = math.max(LeftHeight, RightHeight)
+                self.ContentScale.Scale = DesiredHeight > AvailableHeight
+                    and math.clamp(AvailableHeight / DesiredHeight, 0.65, 1)
+                    or 1
+            end)
         end
 
         function Tab:AddGroupbox(Info)
@@ -5006,8 +4948,6 @@ function Library:CreateWindow(WindowInfo)
                     return
                 end
 
-                -- Let the list determine the vertical size. Width always remains
-                -- relative to the column, so every control follows a resize.
                 local ContentHeight = math.ceil(GroupboxList.AbsoluteContentSize.Y)
                 local HeaderHeight = 35 * Library.DPIScale
                 local PaddingHeight = 14 * Library.DPIScale
@@ -5489,8 +5429,8 @@ function Library:CreateWindow(WindowInfo)
         Library.Toggled = false
         MainFrame.Visible = false
         ModalElement.Modal = false
+        TooltipLabel.Visible = false
 
-        -- Stop the custom cursor immediately when minimized.
         pcall(function()
             RunService:UnbindFromRenderStep("ShowCursor")
         end)
@@ -5515,8 +5455,6 @@ function Library:CreateWindow(WindowInfo)
 
         MainFrame.Visible = Library.Toggled
 
-        -- Modal=true steals/suppresses Roblox camera input and breaks ShiftLock.
-        -- The library doesn't need a modal TextButton, so keep it permanently off.
         ModalElement.Modal = false
 
         if Library.Toggled then
@@ -5532,8 +5470,6 @@ function Library:CreateWindow(WindowInfo)
                 RunService:UnbindFromRenderStep("ShowCursor")
             end)
             RunService:BindToRenderStep("ShowCursor", Enum.RenderPriority.Last.Value, function()
-                -- Do not touch MouseBehavior / MouseBehaviorOverride here.
-                -- Those properties are used by Roblox's ShiftLock camera.
                 UserInputService.MouseIconEnabled = not Library.ShowCustomCursor
 
                 Cursor.Position = UDim2.fromOffset(Mouse.X, Mouse.Y)
