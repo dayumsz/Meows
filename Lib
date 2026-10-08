@@ -836,7 +836,7 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
             local Delta = Input.Position - StartPos
             local NewX = math.clamp(FrameSize.X.Offset + Delta.X, Library.MinSize.X, math.huge)
             local NewY = math.clamp(FrameSize.Y.Offset + Delta.Y, Library.MinSize.Y, math.huge)
-            UI.Size = UDim2.new(FrameSize.X.Scale, NewX, FrameSize.Y.Scale, math.min(NewY, NewX))
+            UI.Size = UDim2.new(FrameSize.X.Scale, NewX, FrameSize.Y.Scale, NewY)
             if Callback then
                 Library:SafeCallback(Callback)
             end
@@ -909,7 +909,6 @@ function Library:AddDraggableButton(Text: string, Func)
         BackgroundColor3 = "BackgroundColor",
         Position = UDim2.fromOffset(6, 6),
         TextSize = 16,
-        ZIndex = 10,
         Parent = ScreenGui,
 
         DPIExclude = {
@@ -4336,6 +4335,8 @@ function Library:CreateWindow(WindowInfo)
             local Button = New("TextButton", {
                 BackgroundColor3 = "MainColor",
                 LayoutOrder = Order,
+                Active = true,
+                ZIndex = 20,
                 Size = UDim2.new(0, Width, 1, 0),
                 Text = Text,
                 TextSize = 14,
@@ -4361,6 +4362,7 @@ function Library:CreateWindow(WindowInfo)
                     ImageRectSize = Icon.ImageRectSize,
                     Position = UDim2.fromScale(0.5, 0.5),
                     Size = UDim2.fromOffset(16, 16),
+                    ZIndex = 11,
                     Parent = Button,
                 })
             end
@@ -4436,11 +4438,11 @@ function Library:CreateWindow(WindowInfo)
             Rebinding = false
         end)
 
-        MinimizeButton.MouseButton1Click:Connect(function()
+        MinimizeButton.Activated:Connect(function()
             Library:Minimize()
         end)
 
-        CloseButton.MouseButton1Click:Connect(function()
+        CloseButton.Activated:Connect(function()
             Library:Unload()
         end)
 
@@ -4488,10 +4490,47 @@ function Library:CreateWindow(WindowInfo)
 
             Library:MakeResizable(MainFrame, ResizeButton, function()
                 for _, Tab in pairs(Library.Tabs) do
-                    Tab:Resize(true)
+                    if Tab.RefreshLayout then
+                        Tab:RefreshLayout()
+                    else
+                        Tab:Resize(true)
+                    end
                 end
+
+                -- Roblox updates AbsoluteSize/AbsoluteContentSize on the next
+                -- layout pass, so run a second pass after the new dimensions settle.
+                task.defer(function()
+                    if not (MainFrame and MainFrame.Parent) then
+                        return
+                    end
+                    for _, Tab in pairs(Library.Tabs) do
+                        if Tab.RefreshLayout then
+                            Tab:RefreshLayout()
+                        end
+                    end
+                end)
             end)
         end
+
+        -- Also refresh when the window is resized by code, DPI changes, or another
+        -- UI constraint. This keeps columns, groupboxes and controls in sync.
+        Library:GiveSignal(MainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            if not MainFrame.Visible then
+                return
+            end
+            task.defer(function()
+                if not (MainFrame and MainFrame.Parent and MainFrame.Visible) then
+                    return
+                end
+                for _, Tab in pairs(Library.Tabs) do
+                    if Tab.RefreshLayout then
+                        Tab:RefreshLayout()
+                    else
+                        Tab:Resize(true)
+                    end
+                end
+            end)
+        end))
 
         New("ImageLabel", {
             Image = ResizeIcon and ResizeIcon.Url or "",
@@ -4803,6 +4842,24 @@ function Library:CreateWindow(WindowInfo)
             end
         end
 
+        -- Recalculate every responsive element after the main window changes size.
+        function Tab:RefreshLayout()
+            self:Resize(true)
+
+            for _, Groupbox in pairs(self.Groupboxes) do
+                Groupbox:Resize()
+            end
+
+            for _, Tabbox in pairs(self.Tabboxes) do
+                for _, SubTab in pairs(Tabbox.Tabs) do
+                    SubTab:Resize()
+                    for _, Groupbox in pairs(SubTab.Groupboxes or {}) do
+                        Groupbox:Resize()
+                    end
+                end
+            end
+        end
+
         function Tab:AddGroupbox(Info)
             local Background = Library:MakeOutline(Info.Side == 1 and TabLeft or TabRight, WindowInfo.CornerRadius)
             Background.Size = UDim2.fromScale(1, 0)
@@ -4905,12 +4962,16 @@ function Library:CreateWindow(WindowInfo)
                     return
                 end
 
-                -- Header (35) + container padding (14) + list content.
+                -- Let the list determine the vertical size. Width always remains
+                -- relative to the column, so every control follows a resize.
                 local ContentHeight = math.ceil(GroupboxList.AbsoluteContentSize.Y)
-                local Height = math.max(39, ContentHeight + (53 * Library.DPIScale))
+                local HeaderHeight = 35 * Library.DPIScale
+                local PaddingHeight = 14 * Library.DPIScale
+                local Height = math.max(39 * Library.DPIScale, HeaderHeight + PaddingHeight + ContentHeight + (4 * Library.DPIScale))
+
                 Background.Size = UDim2.new(1, 0, 0, Height)
-                GroupboxHolder.Size = UDim2.new(1, -4, 0, math.max(0, Height - 4))
-                GroupboxContainer.Size = UDim2.new(1, 0, 0, math.max(0, Height - (35 * Library.DPIScale)))
+                GroupboxHolder.Size = UDim2.new(1, -4, 0, math.max(0, Height - (4 * Library.DPIScale)))
+                GroupboxContainer.Size = UDim2.new(1, 0, 0, math.max(0, Height - HeaderHeight))
             end
 
             function Groupbox:SetCollapsed(Collapsed: boolean)
@@ -5383,10 +5444,13 @@ function Library:CreateWindow(WindowInfo)
     function Library:Minimize()
         Library.Toggled = false
         MainFrame.Visible = false
-        -- Never make the ScreenGui modal. Roblox's camera/ShiftLock input
-        -- must continue reaching the default camera controller.
         ModalElement.Modal = false
 
+        -- Stop the custom cursor immediately when minimized.
+        pcall(function()
+            RunService:UnbindFromRenderStep("ShowCursor")
+        end)
+        Cursor.Visible = false
         TooltipLabel.Visible = false
         for _, Option in pairs(Library.Options) do
             if Option.Type == "ColorPicker" then
