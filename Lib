@@ -4210,15 +4210,11 @@ function Library:CreateWindow(WindowInfo)
             Scale = 1,
             Parent = MainFrame,
         })
-        ContentScale = New("UIScale", {
-            Scale = 1,
-            Parent = MainFrame,
-        })
-        local BaseContentHeight = math.max(1, WindowInfo.Size.Y.Offset * Library.DPIScale)
+        local BaseContentHeight = math.max(1, WindowInfo.Size.Y.Offset)
         local LastContentScale = 1
 
         local function UpdateContentScale()
-            if not MainFrame or not MainFrame.Parent then
+            if not MainFrame or not MainFrame.Parent or not ContentScale then
                 return
             end
 
@@ -4533,26 +4529,6 @@ function Library:CreateWindow(WindowInfo)
                 end)
             end)
         end
-
-        Library:GiveSignal(MainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-            UpdateContentScale()
-            if not MainFrame.Visible then
-                return
-            end
-            task.defer(function()
-                if not (MainFrame and MainFrame.Parent and MainFrame.Visible) then
-                    return
-                end
-                UpdateContentScale()
-                for _, Tab in pairs(Library.Tabs) do
-                    if Tab.RefreshLayout then
-                        Tab:RefreshLayout()
-                    else
-                        Tab:Resize(true)
-                    end
-                end
-            end)
-        end))
 
         New("ImageLabel", {
             Image = ResizeIcon and ResizeIcon.Url or "",
@@ -5469,6 +5445,34 @@ function Library:CreateWindow(WindowInfo)
 
         return Tab
     end
+
+        ContentScale = New("UIScale", {
+            Scale = 1,
+            Parent = MainFrame,
+        })
+        BaseContentHeight = math.max(1, MainFrame.AbsoluteSize.Y)
+        LastContentScale = 1
+        UpdateContentScale()
+
+        Library:GiveSignal(MainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            UpdateContentScale()
+            if not MainFrame.Visible then
+                return
+            end
+            task.defer(function()
+                if not (MainFrame and MainFrame.Parent and MainFrame.Visible) then
+                    return
+                end
+                UpdateContentScale()
+                for _, Tab in pairs(Library.Tabs) do
+                    if Tab.RefreshLayout then
+                        Tab:RefreshLayout()
+                    else
+                        Tab:Resize(true)
+                    end
+                end
+            end)
+        end))
 
     function Library:Minimize()
         Library.Toggled = false
