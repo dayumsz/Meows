@@ -5127,7 +5127,7 @@ function Library:CreateWindow(WindowInfo)
                     Elements = {},
                 }
 
-                function Tab:Show()
+                local function ShowTab()
                     if Tabbox.ActiveTab then
                         Tabbox.ActiveTab:Hide()
                     end
@@ -5141,6 +5141,8 @@ function Library:CreateWindow(WindowInfo)
                     Tabbox.ActiveTab = Tab
                     Tab:Resize()
                 end
+
+                Tab.Show = ShowTab
 
                 function Tab:Hide()
                     Button.BackgroundTransparency = 0
@@ -5162,10 +5164,10 @@ function Library:CreateWindow(WindowInfo)
                 end
 
                 if not Tabbox.ActiveTab then
-                    Tab:Show()
+                    ShowTab()
                 end
 
-                Button.MouseButton1Click:Connect(Tab.Show)
+                Button.MouseButton1Click:Connect(ShowTab)
 
                 setmetatable(Tab, BaseGroupbox)
 
@@ -5210,7 +5212,7 @@ function Library:CreateWindow(WindowInfo)
             end
         end
 
-        function Tab:Show()
+        local function ShowTab()
             if Library.ActiveTab then
                 Library.ActiveTab:Hide()
             end
@@ -5231,6 +5233,8 @@ function Library:CreateWindow(WindowInfo)
             Library.ActiveTab = Tab
         end
 
+        Tab.Show = ShowTab
+
         function Tab:Hide()
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 1,
@@ -5249,7 +5253,7 @@ function Library:CreateWindow(WindowInfo)
         end
 
         if not Library.ActiveTab then
-            Tab:Show()
+            ShowTab()
         end
 
         TabButton.MouseEnter:Connect(function()
@@ -5258,7 +5262,7 @@ function Library:CreateWindow(WindowInfo)
         TabButton.MouseLeave:Connect(function()
             Tab:Hover(false)
         end)
-        TabButton.MouseButton1Click:Connect(Tab.Show)
+        TabButton.MouseButton1Click:Connect(ShowTab)
 
         Library.Tabs[Name] = Tab
 
@@ -5412,7 +5416,7 @@ function Library:CreateWindow(WindowInfo)
             end
         end
 
-        function Tab:Show()
+        local function ShowTab()
             if Library.ActiveTab then
                 Library.ActiveTab:Hide()
             end
@@ -5433,6 +5437,8 @@ function Library:CreateWindow(WindowInfo)
             Library.ActiveTab = Tab
         end
 
+        Tab.Show = ShowTab
+
         function Tab:Hide()
             TweenService:Create(TabButton, Library.TweenInfo, {
                 BackgroundTransparency = 1,
@@ -5451,7 +5457,7 @@ function Library:CreateWindow(WindowInfo)
         end
 
         if not Library.ActiveTab then
-            Tab:Show()
+            ShowTab()
         end
 
         TabButton.MouseEnter:Connect(function()
@@ -5460,7 +5466,7 @@ function Library:CreateWindow(WindowInfo)
         TabButton.MouseLeave:Connect(function()
             Tab:Hover(false)
         end)
-        TabButton.MouseButton1Click:Connect(Tab.Show)
+        TabButton.MouseButton1Click:Connect(ShowTab)
 
         Tab.Container = TabContainer
         setmetatable(Tab, BaseGroupbox)
@@ -5705,7 +5711,7 @@ function Library:CreateWindow(WindowInfo)
                     if Tabbox.ActiveTab == Tab then
                         Tab:Resize()
                     elseif VisibleElements[Tabbox.ActiveTab] == 0 then
-                        Tab:Show()
+                        ShowTab()
                     end
                 end
             end
