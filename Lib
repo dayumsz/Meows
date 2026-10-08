@@ -4173,6 +4173,7 @@ function Library:CreateWindow(WindowInfo)
 
     local MainFrame
     local MainScale
+    local ResponsiveScale
     local SearchBox
     local ResizeButton
     local Tabs
@@ -4209,6 +4210,41 @@ function Library:CreateWindow(WindowInfo)
             Scale = 1,
             Parent = MainFrame,
         })
+
+        -- ResponsiveScale is separate from MainScale so the open/close animation
+        -- can keep using MainScale without fighting the resize system.
+        ResponsiveScale = New("UIScale", {
+            Scale = 1,
+            Parent = MainFrame,
+        })
+
+        local BaseWindowWidth = math.max(1, WindowInfo.Size.X.Offset)
+        local BaseWindowHeight = math.max(1, WindowInfo.Size.Y.Offset)
+
+        local function UpdateResponsiveScale()
+            if not MainFrame or not MainFrame.Parent then
+                return
+            end
+
+            -- Use the raw UDim2 size instead of AbsoluteSize: AbsoluteSize already
+            -- includes ResponsiveScale and would otherwise create a feedback loop.
+            local ParentSize = ScreenGui.AbsoluteSize
+            local RawWidth = MainFrame.Size.X.Scale * ParentSize.X + MainFrame.Size.X.Offset
+            local RawHeight = MainFrame.Size.Y.Scale * ParentSize.Y + MainFrame.Size.Y.Offset
+            if RawWidth <= 0 or RawHeight <= 0 then
+                return
+            end
+
+            -- Shrink the whole contents when the window becomes smaller,
+            -- using the limiting dimension so nothing keeps its old vertical size.
+            local WidthScale = RawWidth / BaseWindowWidth
+            local HeightScale = RawHeight / BaseWindowHeight
+            local Scale = math.min(WidthScale, HeightScale)
+
+            -- Keep the UI usable and prevent it from becoming comically large.
+            Scale = math.clamp(Scale, 0.65, 1.15)
+            ResponsiveScale.Scale = Scale
+        end
         do
             local Lines = {
                 {
@@ -4499,21 +4535,27 @@ function Library:CreateWindow(WindowInfo)
 
                 -- Roblox updates AbsoluteSize/AbsoluteContentSize on the next
                 -- layout pass, so run a second pass after the new dimensions settle.
+                UpdateResponsiveScale()
+
                 task.defer(function()
                     if not (MainFrame and MainFrame.Parent) then
                         return
                     end
+                    UpdateResponsiveScale()
                     for _, Tab in pairs(Library.Tabs) do
                         if Tab.RefreshLayout then
                             Tab:RefreshLayout()
                         end
                     end
+                    UpdateResponsiveScale()
                 end)
             end)
         end
 
         -- Also refresh when the window is resized by code, DPI changes, or another
         -- UI constraint. This keeps columns, groupboxes and controls in sync.
+        UpdateResponsiveScale()
+
         Library:GiveSignal(MainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
             if not MainFrame.Visible then
                 return
@@ -4522,6 +4564,7 @@ function Library:CreateWindow(WindowInfo)
                 if not (MainFrame and MainFrame.Parent and MainFrame.Visible) then
                     return
                 end
+                UpdateResponsiveScale()
                 for _, Tab in pairs(Library.Tabs) do
                     if Tab.RefreshLayout then
                         Tab:RefreshLayout()
@@ -4529,6 +4572,7 @@ function Library:CreateWindow(WindowInfo)
                         Tab:Resize(true)
                     end
                 end
+                UpdateResponsiveScale()
             end)
         end))
 
