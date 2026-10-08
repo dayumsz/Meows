@@ -4978,20 +4978,26 @@ function Library:CreateWindow(WindowInfo)
                     return
                 end
 
+                local ContentScaleValue = ContentScale and ContentScale.Scale or 1
+
                 if Groupbox.Collapsed then
-                    Background.Size = UDim2.new(1, 0, 0, 39 * Library.DPIScale)
+                    local CollapsedHeight = 39 * Library.DPIScale * ContentScaleValue
+                    Background.Size = UDim2.new(1, 0, 0, CollapsedHeight)
+                    GroupboxHolder.Size = UDim2.new(1, -4 * ContentScaleValue, 0, math.max(0, CollapsedHeight - 4 * Library.DPIScale * ContentScaleValue))
                     return
                 end
 
-                local ContentScaleValue = ContentScale and ContentScale.Scale or 1
                 local ContentHeight = math.ceil(GroupboxList.AbsoluteContentSize.Y / ContentScaleValue)
                 local HeaderHeight = 35 * Library.DPIScale
                 local PaddingHeight = 14 * Library.DPIScale
-                local Height = math.max(39 * Library.DPIScale, HeaderHeight + PaddingHeight + ContentHeight + (4 * Library.DPIScale))
+                local BaseHeight = math.max(39 * Library.DPIScale, HeaderHeight + PaddingHeight + ContentHeight + (4 * Library.DPIScale))
+                local Height = BaseHeight * ContentScaleValue
+                local BorderSize = 4 * Library.DPIScale * ContentScaleValue
+                local ScaledHeaderHeight = HeaderHeight * ContentScaleValue
 
                 Background.Size = UDim2.new(1, 0, 0, Height)
-                GroupboxHolder.Size = UDim2.new(1, -4, 0, math.max(0, Height - (4 * Library.DPIScale)))
-                GroupboxContainer.Size = UDim2.new(1, 0, 0, math.max(0, Height - HeaderHeight))
+                GroupboxHolder.Size = UDim2.new(1, -4 * ContentScaleValue, 0, math.max(0, Height - BorderSize))
+                GroupboxContainer.Size = UDim2.new(1, 0, 0, math.max(0, Height - ScaledHeaderHeight))
             end
 
             function Groupbox:SetCollapsed(Collapsed: boolean)
@@ -5150,7 +5156,9 @@ function Library:CreateWindow(WindowInfo)
                         return
                     end
                     local ContentScaleValue = ContentScale and ContentScale.Scale or 1
-                    Background.Size = UDim2.new(1, 0, 0, (List.AbsoluteContentSize.Y / ContentScaleValue) + 53 * Library.DPIScale)
+                    local ContentHeight = List.AbsoluteContentSize.Y / ContentScaleValue
+                    local BaseHeight = ContentHeight + 53 * Library.DPIScale
+                    Background.Size = UDim2.new(1, 0, 0, BaseHeight * ContentScaleValue)
                 end
 
                 if not Tabbox.ActiveTab then
