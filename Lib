@@ -4173,6 +4173,7 @@ function Library:CreateWindow(WindowInfo)
 
     local MainFrame
     local MainScale
+    local ContentScale
     local SearchBox
     local ResizeButton
     local Tabs
@@ -4209,7 +4210,31 @@ function Library:CreateWindow(WindowInfo)
             Scale = 1,
             Parent = MainFrame,
         })
+        ContentScale = New("UIScale", {
+            Scale = 1,
+            Parent = MainFrame,
+        })
+        local BaseContentHeight = math.max(1, WindowInfo.Size.Y.Offset * Library.DPIScale)
+        local LastContentScale = 1
 
+        local function UpdateContentScale()
+            if not MainFrame or not MainFrame.Parent then
+                return
+            end
+
+            local Height = MainFrame.AbsoluteSize.Y
+            if Height <= 0 then
+                return
+            end
+
+            local Scale = math.clamp(Height / BaseContentHeight, 0.55, 1.5)
+            if math.abs(Scale - LastContentScale) < 0.001 then
+                return
+            end
+
+            LastContentScale = Scale
+            ContentScale.Scale = Scale
+        end
         do
             local Lines = {
                 {
@@ -4391,8 +4416,8 @@ function Library:CreateWindow(WindowInfo)
         end
 
         local KeybindButton = CreateControl(1, 92, KeyText())
-        local MinimizeButton = CreateControl(2, 30, "-", "minus")
-        local CloseButton = CreateControl(3, 30, "X", "x")
+        local MinimizeButton = CreateControl(2, 30, "", "minus")
+        local CloseButton = CreateControl(3, 30, "", "x")
 
         Library.MinimizeKeybind = WindowInfo.MinimizeKeybind or Library.ToggleKeybind
 
@@ -4437,12 +4462,11 @@ function Library:CreateWindow(WindowInfo)
             Rebinding = false
         end)
 
-        MinimizeButton.MouseButton1Click:Connect(function()
-            Library:Toggle(false)
-            Library:Notify("Press " .. KeyText() .. " to reopen", 3)
+        MinimizeButton.Activated:Connect(function()
+            Library:Minimize()
         end)
 
-        CloseButton.MouseButton1Click:Connect(function()
+        CloseButton.Activated:Connect(function()
             Library:Unload()
         end)
 
@@ -4496,8 +4520,39 @@ function Library:CreateWindow(WindowInfo)
                         Tab:Resize(true)
                     end
                 end
+
+                task.defer(function()
+                    if not (MainFrame and MainFrame.Parent) then
+                        return
+                    end
+                    for _, Tab in pairs(Library.Tabs) do
+                        if Tab.RefreshLayout then
+                            Tab:RefreshLayout()
+                        end
+                    end
+                end)
             end)
         end
+
+        Library:GiveSignal(MainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            UpdateContentScale()
+            if not MainFrame.Visible then
+                return
+            end
+            task.defer(function()
+                if not (MainFrame and MainFrame.Parent and MainFrame.Visible) then
+                    return
+                end
+                UpdateContentScale()
+                for _, Tab in pairs(Library.Tabs) do
+                    if Tab.RefreshLayout then
+                        Tab:RefreshLayout()
+                    else
+                        Tab:Resize(true)
+                    end
+                end
+            end)
+        end))
 
         New("ImageLabel", {
             Image = ResizeIcon and ResizeIcon.Url or "",
@@ -4607,10 +4662,6 @@ function Library:CreateWindow(WindowInfo)
                 Size = UDim2.fromScale(1, 1),
                 Visible = false,
                 Parent = Container,
-            })
-            local ContentScale = New("UIScale", {
-                Scale = 1,
-                Parent = TabContainer,
             })
 
             TabLeft = New("ScrollingFrame", {
@@ -4723,7 +4774,6 @@ function Library:CreateWindow(WindowInfo)
         end
 
         local Tab = {
-            ContentScale = ContentScale,
             Groupboxes = {},
             Tabboxes = {},
             Sides = {
@@ -4815,14 +4865,12 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Tab:RefreshLayout()
-            if self.ContentScale then
-                self.ContentScale.Scale = 1
-            end
-
             self:Resize(true)
+
             for _, Groupbox in pairs(self.Groupboxes) do
                 Groupbox:Resize()
             end
+
             for _, Tabbox in pairs(self.Tabboxes) do
                 for _, SubTab in pairs(Tabbox.Tabs) do
                     SubTab:Resize()
@@ -4831,19 +4879,6 @@ function Library:CreateWindow(WindowInfo)
                     end
                 end
             end
-
-            task.defer(function()
-                if not (self.ContentScale and TabContainer and TabContainer.Parent) then
-                    return
-                end
-                local AvailableHeight = math.max(1, TabContainer.AbsoluteSize.Y)
-                local LeftHeight = self.Sides[1] and self.Sides[1].AbsoluteCanvasSize.Y or 0
-                local RightHeight = self.Sides[2] and self.Sides[2].AbsoluteCanvasSize.Y or 0
-                local DesiredHeight = math.max(LeftHeight, RightHeight)
-                self.ContentScale.Scale = DesiredHeight > AvailableHeight
-                    and math.clamp(AvailableHeight / DesiredHeight, 0.65, 1)
-                    or 1
-            end)
         end
 
         function Tab:AddGroupbox(Info)
@@ -4948,7 +4983,8 @@ function Library:CreateWindow(WindowInfo)
                     return
                 end
 
-                local ContentHeight = math.ceil(GroupboxList.AbsoluteContentSize.Y)
+                local ContentScaleValue = ContentScale and ContentScale.Scale or 1
+                local ContentHeight = math.ceil(GroupboxList.AbsoluteContentSize.Y / ContentScaleValue)
                 local HeaderHeight = 35 * Library.DPIScale
                 local PaddingHeight = 14 * Library.DPIScale
                 local Height = math.max(39 * Library.DPIScale, HeaderHeight + PaddingHeight + ContentHeight + (4 * Library.DPIScale))
@@ -5113,7 +5149,8 @@ function Library:CreateWindow(WindowInfo)
                     if Tabbox.ActiveTab ~= Tab then
                         return
                     end
-                    Background.Size = UDim2.new(1, 0, 0, List.AbsoluteContentSize.Y + 53 * Library.DPIScale)
+                    local ContentScaleValue = ContentScale and ContentScale.Scale or 1
+                    Background.Size = UDim2.new(1, 0, 0, (List.AbsoluteContentSize.Y / ContentScaleValue) + 53 * Library.DPIScale)
                 end
 
                 if not Tabbox.ActiveTab then
@@ -5429,7 +5466,6 @@ function Library:CreateWindow(WindowInfo)
         Library.Toggled = false
         MainFrame.Visible = false
         ModalElement.Modal = false
-        TooltipLabel.Visible = false
 
         pcall(function()
             RunService:UnbindFromRenderStep("ShowCursor")
