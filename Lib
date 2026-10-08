@@ -74,10 +74,10 @@ local Library = {
 
     IsLightTheme = false,
     Scheme = {
-        BackgroundColor = Color3.fromRGB(15, 15, 15),
-        MainColor = Color3.fromRGB(25, 25, 25),
-        AccentColor = Color3.fromRGB(125, 85, 255),
-        OutlineColor = Color3.fromRGB(40, 40, 40),
+        BackgroundColor = Color3.fromRGB(7, 7, 7),
+        MainColor = Color3.fromRGB(16, 16, 16),
+        AccentColor = Color3.fromRGB(235, 235, 235),
+        OutlineColor = Color3.fromRGB(38, 38, 38),
         FontColor = Color3.new(1, 1, 1),
         Font = Font.fromEnum(Enum.Font.Code),
 
@@ -127,6 +127,8 @@ local Templates = {
         FontFace = "Font",
         RichText = true,
         TextColor3 = "FontColor",
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        ClipsDescendants = true,
     },
     TextButton = {
         AutoButtonColor = false,
@@ -134,6 +136,8 @@ local Templates = {
         FontFace = "Font",
         RichText = true,
         TextColor3 = "FontColor",
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        ClipsDescendants = true,
     },
     TextBox = {
         BorderSizePixel = 0,
@@ -154,7 +158,7 @@ local Templates = {
 
     Window = {
         Title = "No Title",
-        Theme = "DefaultTheme",
+        Theme = "Monochrome",
         Footer = "No Footer",
         Position = UDim2.fromOffset(6, 6),
         Size = UDim2.fromOffset(700, 440),
@@ -165,8 +169,9 @@ local Templates = {
         CornerRadius = 4,
         NotifySide = "Right",
         ShowCustomCursor = true,
-        Font = Enum.Font.Code,
+        Font = Enum.Font.GothamMedium,
         ToggleKeybind = Enum.KeyCode.RightControl,
+        MinimizeKeybind = nil,
         MobileButtonsSide = "Left",
     },
     Toggle = {
@@ -688,6 +693,11 @@ function Library:GetDarkerColor(Color: Color3): Color3
     return Color3.fromHSV(H, S, V / 2)
 end
 
+function Library:GetContrastColor(Color: Color3): Color3
+    local Luminance = 0.299 * Color.R + 0.587 * Color.G + 0.114 * Color.B
+    return Luminance > 0.55 and Color3.fromRGB(12, 12, 12) or Color3.new(1, 1, 1)
+end
+
 function Library:GetKeyString(KeyCode: Enum.KeyCode)
     if KeyCode.EnumType == Enum.KeyCode and KeyCode.Value > 33 and KeyCode.Value < 127 then
         return string.char(KeyCode.Value)
@@ -702,7 +712,7 @@ function Library:GetTextBounds(Text: string, Font: Font, Size: number, Width: nu
     Params.RichText = true
     Params.Font = Font
     Params.Size = Size
-    Params.Width = Width or workspace.CurrentCamera.ViewportSize.X - 32
+    Params.Width = (Width and Width > 0) and Width or workspace.CurrentCamera.ViewportSize.X - 32
 
     local Bounds = TextService:GetTextBoundsAsync(Params)
     return Bounds.X, Bounds.Y
@@ -2511,6 +2521,8 @@ do
             TextSize = 14,
             TextTransparency = 0.4,
             TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            ClipsDescendants = true,
             Parent = Button,
         })
 
@@ -2710,6 +2722,8 @@ do
             TextSize = 14,
             TextTransparency = 0.4,
             TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            ClipsDescendants = true,
             Parent = Button,
         })
 
@@ -2795,8 +2809,12 @@ do
                 Position = UDim2.fromScale(Offset, 0),
             }):Play()
 
-            Ball.BackgroundColor3 = Library.Scheme.FontColor
-            Library.Registry[Ball].BackgroundColor3 = "FontColor"
+            local function BallColor()
+                return Toggle.Value and Library:GetContrastColor(Library.Scheme.AccentColor) or Library.Scheme.FontColor
+            end
+
+            Ball.BackgroundColor3 = BallColor()
+            Library.Registry[Ball].BackgroundColor3 = BallColor
         end
 
         function Toggle:OnChanged(Func)
@@ -3120,6 +3138,7 @@ do
 
         local Fill = New("Frame", {
             BackgroundColor3 = "AccentColor",
+            BackgroundTransparency = 0.7,
             Size = UDim2.fromScale(0.5, 1),
             Parent = Bar,
 
@@ -3358,7 +3377,7 @@ do
 
         New("UIPadding", {
             PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 4),
+            PaddingRight = UDim.new(0, 24),
             Parent = Display,
         })
 
@@ -3773,7 +3792,7 @@ do
         })
         New("UIPadding", {
             PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 4),
+            PaddingRight = UDim.new(0, 24),
             Parent = Header,
         })
 
@@ -4144,6 +4163,14 @@ function Library:CreateWindow(WindowInfo)
     Library.ShowCustomCursor = WindowInfo.ShowCustomCursor
     Library.Scheme.Font = WindowInfo.Font
     Library.ToggleKeybind = WindowInfo.ToggleKeybind
+    pcall(function()
+        if typeof(WindowInfo.ToggleKeybind) == "EnumItem" and isfile("meow_saves/toggle_key.txt") then
+            local Saved = Enum.KeyCode[readfile("meow_saves/toggle_key.txt")]
+            if Saved then
+                Library.ToggleKeybind = Saved
+            end
+        end
+    end)
 
     local MainFrame
     local MainScale
@@ -4256,7 +4283,7 @@ function Library:CreateWindow(WindowInfo)
             BackgroundColor3 = "MainColor",
             PlaceholderText = "Search",
             Position = UDim2.new(0.3, 8, 0.5, 0),
-            Size = UDim2.new(0.7, -57, 1, -16),
+            Size = UDim2.new(0.7, -196, 1, -16),
             TextScaled = true,
             Parent = TopBar,
         })
@@ -4290,20 +4317,132 @@ function Library:CreateWindow(WindowInfo)
             })
         end
 
-        local MoveIcon = Library:GetIcon("move")
-        if MoveIcon then
-            New("ImageLabel", {
-                AnchorPoint = Vector2.new(1, 0.5),
-                Image = MoveIcon.Url,
-                ImageColor3 = "OutlineColor",
-                ImageRectOffset = MoveIcon.ImageRectOffset,
-                ImageRectSize = MoveIcon.ImageRectSize,
-                Position = UDim2.new(1, -10, 0.5, 0),
-                Size = UDim2.fromOffset(28, 28),
-                SizeConstraint = Enum.SizeConstraint.RelativeYY,
-                Parent = TopBar,
+        local Controls = New("Frame", {
+            AnchorPoint = Vector2.new(1, 0.5),
+            BackgroundTransparency = 1,
+            Position = UDim2.new(1, -10, 0.5, 0),
+            Size = UDim2.new(0, 168, 1, -16),
+            Parent = TopBar,
+        })
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            HorizontalAlignment = Enum.HorizontalAlignment.Right,
+            Padding = UDim.new(0, 6),
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            Parent = Controls,
+        })
+
+        local function CreateControl(Order: number, Width: number, Text: string, IconName: string?)
+            local Button = New("TextButton", {
+                BackgroundColor3 = "MainColor",
+                LayoutOrder = Order,
+                Size = UDim2.new(0, Width, 1, 0),
+                Text = Text,
+                TextSize = 14,
+                Parent = Controls,
             })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                Parent = Button,
+            })
+            New("UIStroke", {
+                Color = "OutlineColor",
+                Parent = Button,
+            })
+
+            local Icon = IconName and Library:GetIcon(IconName)
+            if Icon then
+                Button.Text = ""
+                New("ImageLabel", {
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    Image = Icon.Url,
+                    ImageColor3 = "FontColor",
+                    ImageRectOffset = Icon.ImageRectOffset,
+                    ImageRectSize = Icon.ImageRectSize,
+                    Position = UDim2.fromScale(0.5, 0.5),
+                    Size = UDim2.fromOffset(16, 16),
+                    Parent = Button,
+                })
+            end
+
+            Button.MouseEnter:Connect(function()
+                TweenService:Create(Button, Library.TweenInfo, {
+                    BackgroundColor3 = Library:GetBetterColor(Library.Scheme.MainColor, 8),
+                }):Play()
+            end)
+            Button.MouseLeave:Connect(function()
+                TweenService:Create(Button, Library.TweenInfo, {
+                    BackgroundColor3 = Library.Scheme.MainColor,
+                }):Play()
+            end)
+
+            return Button
         end
+
+        local function KeyText()
+            if typeof(Library.ToggleKeybind) == "table" then
+                return "[" .. tostring(Library.ToggleKeybind.Value) .. "]"
+            end
+
+            return "[" .. Library.ToggleKeybind.Name .. "]"
+        end
+
+        local KeybindButton = CreateControl(1, 92, KeyText())
+        local MinimizeButton = CreateControl(2, 30, "", "minus")
+        local CloseButton = CreateControl(3, 30, "", "x")
+
+        -- The keybind controls visibility/minimization.  Keep it separate from
+        -- the window's internal close action so closing always destroys the UI.
+        Library.MinimizeKeybind = WindowInfo.MinimizeKeybind or Library.ToggleKeybind
+
+        function Library:SetToggleKeybind(Key: Enum.KeyCode)
+            Library.ToggleKeybind = Key
+            KeybindButton.Text = KeyText()
+
+            pcall(function()
+                if not isfolder("meow_saves") then
+                    makefolder("meow_saves")
+                end
+                writefile("meow_saves/toggle_key.txt", Key.Name)
+            end)
+        end
+
+        local Rebinding = false
+        KeybindButton.MouseButton1Click:Connect(function()
+            if Rebinding or typeof(Library.ToggleKeybind) == "table" then
+                return
+            end
+
+            Rebinding = true
+            Library.RebindingToggle = true
+            KeybindButton.Text = "..."
+
+            local Input
+            repeat
+                Input = UserInputService.InputBegan:Wait()
+            until Input.UserInputType == Enum.UserInputType.Keyboard or IsClickInput(Input, true)
+
+            if
+                Input.UserInputType == Enum.UserInputType.Keyboard
+                and Input.KeyCode ~= Enum.KeyCode.Escape
+                and Input.KeyCode ~= Enum.KeyCode.Unknown
+            then
+                Library:SetToggleKeybind(Input.KeyCode)
+            end
+
+            KeybindButton.Text = KeyText()
+            RunService.RenderStepped:Wait()
+            Library.RebindingToggle = false
+            Rebinding = false
+        end)
+
+        MinimizeButton.MouseButton1Click:Connect(function()
+            Library:Minimize()
+        end)
+
+        CloseButton.MouseButton1Click:Connect(function()
+            Library:Unload()
+        end)
 
         local BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
@@ -4487,7 +4626,7 @@ function Library:CreateWindow(WindowInfo)
                     Parent = TabLeft,
                 })
 
-                TabLeft.Size = UDim2.new(0, math.floor(TabContainer.AbsoluteSize.X / 2) - 3, 1, 0)
+                TabLeft.Size = UDim2.new(0.5, -3, 1, 0)
                 Library:UpdateDPI(TabLeft, { Size = TabLeft.Size })
             end
 
@@ -4516,7 +4655,7 @@ function Library:CreateWindow(WindowInfo)
                     Parent = TabRight,
                 })
 
-                TabRight.Size = UDim2.new(0, math.floor(TabContainer.AbsoluteSize.X / 2) - 3, 1, 0)
+                TabRight.Size = UDim2.new(0.5, -3, 1, 0)
                 Library:UpdateDPI(TabRight, { Size = TabRight.Size })
             end
 
@@ -4656,7 +4795,7 @@ function Library:CreateWindow(WindowInfo)
             local Offset = WarningBox.Visible and WarningBox.AbsoluteSize.Y + 6 or 0
             for _, Side in pairs(Tab.Sides) do
                 Side.Position = UDim2.new(Side.Position.X.Scale, 0, 0, Offset)
-                Side.Size = UDim2.new(0, math.floor(TabContainer.AbsoluteSize.X / 2) - 3, 1, -Offset)
+                Side.Size = UDim2.new(0.5, -3, 1, -Offset)
                 Library:UpdateDPI(Side, {
                     Position = Side.Position,
                     Size = Side.Size,
@@ -4676,6 +4815,8 @@ function Library:CreateWindow(WindowInfo)
 
             local GroupboxContainer
             local GroupboxList
+            local GroupboxHeader
+            local GroupboxArrow
 
             do
                 GroupboxHolder = New("Frame", {
@@ -4703,14 +4844,34 @@ function Library:CreateWindow(WindowInfo)
                 })
                 New("UIPadding", {
                     PaddingLeft = UDim.new(0, 12),
-                    PaddingRight = UDim.new(0, 12),
+                    PaddingRight = UDim.new(0, 32),
                     Parent = GroupboxLabel,
                 })
 
+                GroupboxHeader = New("TextButton", {
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 34),
+                    Text = "",
+                    Parent = GroupboxHolder,
+                })
+                GroupboxArrow = New("ImageLabel", {
+                    AnchorPoint = Vector2.new(1, 0.5),
+                    Image = ArrowIcon and ArrowIcon.Url or "",
+                    ImageColor3 = "FontColor",
+                    ImageRectOffset = ArrowIcon and ArrowIcon.ImageRectOffset or Vector2.zero,
+                    ImageRectSize = ArrowIcon and ArrowIcon.ImageRectSize or Vector2.zero,
+                    Position = UDim2.new(1, -10, 0.5, 0),
+                    Rotation = 180,
+                    Size = UDim2.fromOffset(16, 16),
+                    Parent = GroupboxHeader,
+                })
+
                 GroupboxContainer = New("Frame", {
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundTransparency = 1,
                     Position = UDim2.fromOffset(0, 35),
-                    Size = UDim2.new(1, 0, 1, -35),
+                    Size = UDim2.new(1, 0, 0, 0),
+                    ClipsDescendants = false,
                     Parent = GroupboxHolder,
                 })
 
@@ -4731,13 +4892,55 @@ function Library:CreateWindow(WindowInfo)
                 Holder = Background,
                 Container = GroupboxContainer,
                 Elements = {},
+                Collapsed = false,
             }
 
             function Groupbox:Resize()
-                Background.Size = UDim2.new(1, 0, 0, GroupboxList.AbsoluteContentSize.Y + 53 * Library.DPIScale)
+                if not Background or not Background.Parent then
+                    return
+                end
+
+                if Groupbox.Collapsed then
+                    Background.Size = UDim2.new(1, 0, 0, 39 * Library.DPIScale)
+                    return
+                end
+
+                -- Header (35) + container padding (14) + list content.
+                local ContentHeight = math.ceil(GroupboxList.AbsoluteContentSize.Y)
+                local Height = math.max(39, ContentHeight + (53 * Library.DPIScale))
+                Background.Size = UDim2.new(1, 0, 0, Height)
+                GroupboxHolder.Size = UDim2.new(1, -4, 0, math.max(0, Height - 4))
+                GroupboxContainer.Size = UDim2.new(1, 0, 0, math.max(0, Height - (35 * Library.DPIScale)))
             end
 
+            function Groupbox:SetCollapsed(Collapsed: boolean)
+                Groupbox.Collapsed = Collapsed
+
+                GroupboxContainer.Visible = not Collapsed
+                TweenService:Create(GroupboxArrow, Library.TweenInfo, {
+                    ImageTransparency = Collapsed and 0.5 or 0,
+                    Rotation = Collapsed and 90 or 180,
+                }):Play()
+
+                Groupbox:Resize()
+            end
+
+            function Groupbox:ToggleCollapsed()
+                Groupbox:SetCollapsed(not Groupbox.Collapsed)
+            end
+
+            GroupboxHeader.MouseButton1Click:Connect(function()
+                Groupbox:ToggleCollapsed()
+            end)
+            GroupboxList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                Groupbox:Resize()
+            end)
+
             setmetatable(Groupbox, BaseGroupbox)
+
+            if Info.Collapsed == true then
+                Groupbox:SetCollapsed(true)
+            end
 
             Groupbox:Resize()
             Tab.Groupboxes[Info.Name] = Groupbox
@@ -4875,6 +5078,10 @@ function Library:CreateWindow(WindowInfo)
                 Button.MouseButton1Click:Connect(Tab.Show)
 
                 setmetatable(Tab, BaseGroupbox)
+
+                List:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                    Tab:Resize()
+                end)
 
                 Tabbox.Tabs[Name] = Tab
 
@@ -5173,6 +5380,24 @@ function Library:CreateWindow(WindowInfo)
         return Tab
     end
 
+    function Library:Minimize()
+        Library.Toggled = false
+        MainFrame.Visible = false
+        -- Never make the ScreenGui modal. Roblox's camera/ShiftLock input
+        -- must continue reaching the default camera controller.
+        ModalElement.Modal = false
+
+        TooltipLabel.Visible = false
+        for _, Option in pairs(Library.Options) do
+            if Option.Type == "ColorPicker" then
+                Option.ColorMenu:Close()
+                Option.ContextMenu:Close()
+            elseif Option.Type == "Dropdown" or Option.Type == "KeyPicker" then
+                Option.Menu:Close()
+            end
+        end
+    end
+
     function Library:Toggle(Value: boolean?)
         if typeof(Value) == "boolean" then
             Library.Toggled = Value
@@ -5181,7 +5406,10 @@ function Library:CreateWindow(WindowInfo)
         end
 
         MainFrame.Visible = Library.Toggled
-        ModalElement.Modal = Library.Toggled
+
+        -- Modal=true steals/suppresses Roblox camera input and breaks ShiftLock.
+        -- The library doesn't need a modal TextButton, so keep it permanently off.
+        ModalElement.Modal = false
 
         if Library.Toggled then
             MainScale.Scale = 0.94
@@ -5196,6 +5424,8 @@ function Library:CreateWindow(WindowInfo)
                 RunService:UnbindFromRenderStep("ShowCursor")
             end)
             RunService:BindToRenderStep("ShowCursor", Enum.RenderPriority.Last.Value, function()
+                -- Do not touch MouseBehavior / MouseBehaviorOverride here.
+                -- Those properties are used by Roblox's ShiftLock camera.
                 UserInputService.MouseIconEnabled = not Library.ShowCustomCursor
 
                 Cursor.Position = UDim2.fromOffset(Mouse.X, Mouse.Y)
@@ -5208,16 +5438,20 @@ function Library:CreateWindow(WindowInfo)
                 end
             end)
         elseif not Library.Toggled then
-            TooltipLabel.Visible = false
-            for _, Option in pairs(Library.Options) do
-                if Option.Type == "ColorPicker" then
-                    Option.ColorMenu:Close()
-                    Option.ContextMenu:Close()
-                elseif Option.Type == "Dropdown" or Option.Type == "KeyPicker" then
-                    Option.Menu:Close()
-                end
-            end
+            Library:Minimize()
         end
+    end
+
+    function Window:Minimize()
+        Library:Minimize()
+    end
+
+    function Window:Toggle(Value: boolean?)
+        Library:Toggle(Value)
+    end
+
+    function Window:Close()
+        Library:Unload()
     end
 
     if WindowInfo.AutoShow then
@@ -5395,18 +5629,23 @@ function Library:CreateWindow(WindowInfo)
     end)
 
     Library:GiveSignal(UserInputService.InputBegan:Connect(function(Input: InputObject)
-        if UserInputService:GetFocusedTextBox() then
+        if UserInputService:GetFocusedTextBox() or Library.RebindingToggle then
             return
         end
 
-        if
-            (
-                typeof(Library.ToggleKeybind) == "table"
-                and Library.ToggleKeybind.Type == "KeyPicker"
-                and Input.KeyCode.Name == Library.ToggleKeybind.Value
-            ) or Input.KeyCode == Library.ToggleKeybind
-        then
-            Library.Toggle()
+        local Key = Library.MinimizeKeybind or Library.ToggleKeybind
+        local MatchesKey = false
+
+        if typeof(Key) == "table" and Key.Type == "KeyPicker" then
+            MatchesKey = Input.UserInputType == Enum.UserInputType.Keyboard
+                and Input.KeyCode.Name == Key.Value
+        elseif typeof(Key) == "EnumItem" then
+            MatchesKey = Input.UserInputType == Enum.UserInputType.Keyboard
+                and Input.KeyCode == Key
+        end
+
+        if MatchesKey then
+            Library:Toggle()
         end
     end))
 
@@ -5446,6 +5685,21 @@ Library:GiveSignal(Teams.ChildAdded:Connect(OnTeamChange))
 Library:GiveSignal(Teams.ChildRemoved:Connect(OnTeamChange))
 
 Library.Themes = {
+    Monochrome = {
+        BackgroundColor = Color3.fromRGB(7, 7, 7),
+        MainColor = Color3.fromRGB(15, 15, 15),
+        AccentColor = Color3.fromRGB(235, 235, 235),
+        OutlineColor = Color3.fromRGB(38, 38, 38),
+        FontColor = Color3.new(1, 1, 1),
+    },
+    Light = {
+        BackgroundColor = Color3.fromRGB(238, 238, 238),
+        MainColor = Color3.fromRGB(252, 252, 252),
+        AccentColor = Color3.fromRGB(20, 20, 20),
+        OutlineColor = Color3.fromRGB(205, 205, 205),
+        FontColor = Color3.fromRGB(15, 15, 15),
+        IsLight = true,
+    },
     DefaultTheme = {
         BackgroundColor = Color3.fromRGB(15, 15, 18),
         MainColor = Color3.fromRGB(26, 26, 30),
@@ -5481,6 +5735,8 @@ function Library:SetTheme(Theme)
         end
     end
 
+    Library.IsLightTheme = Colors.IsLight == true
+
     Library:UpdateColorsUsingRegistry()
     return true
 end
@@ -5507,7 +5763,7 @@ function Library:BuildThemeSection(Groupbox)
     Groupbox:AddDropdown("MeowThemeList", {
         Text = "Theme",
         Values = Names,
-        Default = table.find(Names, "DefaultTheme") and "DefaultTheme" or nil,
+        Default = table.find(Names, "Monochrome") and "Monochrome" or nil,
         Callback = function(Value)
             if not Library:SetTheme(Value) then
                 return
