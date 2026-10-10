@@ -58,7 +58,6 @@ local Library = {
     Options = Options,
 
     NotifySide = "Right",
-    ShowCustomCursor = true,
     ForceCheckbox = false,
     ShowToggleFrameInKeybinds = true,
     NotifyOnError = false,
@@ -175,7 +174,6 @@ local Templates = {
         Resizable = true,
         CornerRadius = 4,
         NotifySide = "Right",
-        ShowCustomCursor = true,
         Font = Enum.Font.GothamMedium,
         ToggleKeybind = Enum.KeyCode.RightControl,
         MinimizeKeybind = nil,
@@ -4604,23 +4602,25 @@ function Library:CreateWindow(WindowInfo)
                 Color = "OutlineColor",
                 Parent = Button,
             })
-
-            local Icon = IconName and Library:GetIcon(IconName)
-            if Icon then
-                Button.Text = ""
-                New("ImageLabel", {
+        
+            local function Bar(Rotation: number)
+                New("Frame", {
                     AnchorPoint = Vector2.new(0.5, 0.5),
-                    Image = Icon.Url,
-                    ImageColor3 = "FontColor",
-                    ImageRectOffset = Icon.ImageRectOffset,
-                    ImageRectSize = Icon.ImageRectSize,
+                    BackgroundColor3 = "FontColor",
                     Position = UDim2.fromScale(0.5, 0.5),
-                    Size = UDim2.fromOffset(16, 16),
-                    ZIndex = 11,
+                    Rotation = Rotation,
+                    Size = UDim2.fromOffset(IconName == "x" and 14 or 12, 2),
                     Parent = Button,
                 })
             end
-
+        
+            if IconName == "minus" then
+                Bar(0)
+            elseif IconName == "x" then
+                Bar(45)
+                Bar(-45)
+            end
+        
             Button.MouseEnter:Connect(function()
                 TweenService:Create(Button, Library.TweenInfo, {
                     BackgroundColor3 = Library:GetBetterColor(Library.Scheme.MainColor, 8),
@@ -4631,7 +4631,7 @@ function Library:CreateWindow(WindowInfo)
                     BackgroundColor3 = Library.Scheme.MainColor,
                 }):Play()
             end)
-
+        
             return Button
         end
 
