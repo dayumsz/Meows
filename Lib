@@ -76,8 +76,8 @@ local Library = {
 
     SnapEnabled = true,
     SnapDivisions = 4,
-    SnapThreshold = 12,
-    SnapRelease = 22,
+    SnapThreshold = 6,
+    SnapRelease = 16,
 
     IsLightTheme = false,
     Scheme = {
@@ -168,7 +168,7 @@ local Templates = {
         Theme = "Monochrome",
         Footer = "No Footer",
         Position = UDim2.fromOffset(6, 6),
-        Size = UDim2.fromOffset(700, 440),
+        Size = UDim2.fromOffset(560, 350),
         IconSize = UDim2.fromOffset(30, 30),
         AutoShow = true,
         Center = true,
