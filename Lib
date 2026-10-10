@@ -71,7 +71,13 @@ local Library = {
     MinSize = Vector2.new(480, 300),
     DPIScale = 1,
     ContentScaleValue = 1,
+    FitScale = 1,
     CornerRadius = 4,
+
+    SnapEnabled = true,
+    SnapDivisions = 4,
+    SnapThreshold = 12,
+    SnapRelease = 22,
 
     IsLightTheme = false,
     Scheme = {
@@ -747,11 +753,109 @@ function Library:SafeCallback(Func: (...any) -> ...any, ...: any)
     end
 end
 
+local function ResolveSnap(Raw: number, Length: number, Bound: number, State: { [string]: number? })
+    local Divisions = math.max(1, math.floor(Library.SnapDivisions))
+
+    if State.Pos and math.abs(Raw - State.Pos) <= Library.SnapRelease then
+        return State.Pos, State.Line
+    end
+
+    State.Pos = nil
+    State.Line = nil
+
+    local BestDistance = Library.SnapThreshold
+    local BestPos
+    local BestLine
+    local Anchors = { 0, Length / 2, Length }
+
+    for Index = 0, Divisions do
+        local Line = Bound * Index / Divisions
+
+        for _, Anchor in ipairs(Anchors) do
+            local Candidate = Line - Anchor
+            local Distance = math.abs(Raw - Candidate)
+
+            if Distance <= BestDistance then
+                BestDistance = Distance
+                BestPos = Candidate
+                BestLine = Line
+            end
+        end
+    end
+
+    if BestPos then
+        State.Pos = BestPos
+        State.Line = BestLine
+        return BestPos, BestLine
+    end
+
+    return Raw, nil
+end
+
 function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggled: boolean?, IsMainWindow: boolean?)
     local StartPos
     local FramePos
+    local StartLocal = Vector2.zero
     local Dragging = false
     local Changed
+    local SnapX = {}
+    local SnapY = {}
+    local GuideV
+    local GuideH
+
+    if IsMainWindow then
+        GuideV = New("Frame", {
+            BackgroundColor3 = "AccentColor",
+            BackgroundTransparency = 0.4,
+            Size = UDim2.new(0, 1, 1, 0),
+            Visible = false,
+            ZIndex = 998,
+            Parent = ScreenGui,
+
+            DPIExclude = {
+                Size = true,
+                Position = true,
+            },
+        })
+        GuideH = New("Frame", {
+            BackgroundColor3 = "AccentColor",
+            BackgroundTransparency = 0.4,
+            Size = UDim2.new(1, 0, 0, 1),
+            Visible = false,
+            ZIndex = 998,
+            Parent = ScreenGui,
+
+            DPIExclude = {
+                Size = true,
+                Position = true,
+            },
+        })
+    end
+
+    local function HideGuides()
+        if GuideV then
+            GuideV.Visible = false
+        end
+        if GuideH then
+            GuideH.Visible = false
+        end
+    end
+
+    local function StopDragging()
+        Dragging = false
+        SnapX.Pos = nil
+        SnapX.Line = nil
+        SnapY.Pos = nil
+        SnapY.Line = nil
+
+        if Changed and Changed.Connected then
+            Changed:Disconnect()
+            Changed = nil
+        end
+
+        HideGuides()
+    end
+
     DragFrame.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) or IsMainWindow and Library.CantDragForced then
             return
@@ -759,6 +863,18 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
 
         StartPos = Input.Position
         FramePos = UI.Position
+
+        local Bound = ScreenGui.AbsoluteSize
+        StartLocal = Vector2.new(
+            FramePos.X.Scale * Bound.X + FramePos.X.Offset,
+            FramePos.Y.Scale * Bound.Y + FramePos.Y.Offset
+        )
+
+        SnapX.Pos = nil
+        SnapX.Line = nil
+        SnapY.Pos = nil
+        SnapY.Line = nil
+
         Dragging = true
 
         Changed = Input.Changed:Connect(function()
@@ -766,11 +882,7 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
                 return
             end
 
-            Dragging = false
-            if Changed and Changed.Connected then
-                Changed:Disconnect()
-                Changed = nil
-            end
+            StopDragging()
         end)
     end)
     Library:GiveSignal(UserInputService.InputChanged:Connect(function(Input: InputObject)
@@ -779,17 +891,39 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
             or (IsMainWindow and Library.CantDragForced)
             or not (ScreenGui and ScreenGui.Parent)
         then
-            Dragging = false
-            if Changed and Changed.Connected then
-                Changed:Disconnect()
-                Changed = nil
-            end
+            StopDragging()
 
             return
         end
 
         if Dragging and IsHoverInput(Input) then
             local Delta = Input.Position - StartPos
+
+            if IsMainWindow and Library.SnapEnabled then
+                local Bound = ScreenGui.AbsoluteSize
+                local Size = UI.AbsoluteSize
+
+                local X, LineX = ResolveSnap(StartLocal.X + Delta.X, Size.X, Bound.X, SnapX)
+                local Y, LineY = ResolveSnap(StartLocal.Y + Delta.Y, Size.Y, Bound.Y, SnapY)
+
+                UI.Position = UDim2.fromOffset(X, Y)
+
+                if GuideV then
+                    GuideV.Visible = LineX ~= nil
+                    if LineX then
+                        GuideV.Position = UDim2.fromOffset(math.floor(LineX), 0)
+                    end
+                end
+                if GuideH then
+                    GuideH.Visible = LineY ~= nil
+                    if LineY then
+                        GuideH.Position = UDim2.fromOffset(0, math.floor(LineY))
+                    end
+                end
+
+                return
+            end
+
             UI.Position =
                 UDim2.new(FramePos.X.Scale, FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)
         end
@@ -799,6 +933,7 @@ end
 function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: () -> ()?)
     local StartPos
     local FrameSize
+    local StartScale = 1
     local Dragging = false
     local Changed
     DragFrame.InputBegan:Connect(function(Input: InputObject)
@@ -808,6 +943,7 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
 
         StartPos = Input.Position
         FrameSize = UI.Size
+        StartScale = math.max(Library.FitScale, 0.01)
         Dragging = true
 
         Changed = Input.Changed:Connect(function()
@@ -834,7 +970,7 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
         end
 
         if Dragging and IsHoverInput(Input) then
-            local Delta = Input.Position - StartPos
+            local Delta = (Input.Position - StartPos) / StartScale
             local NewX = math.clamp(FrameSize.X.Offset + Delta.X, Library.MinSize.X, math.huge)
             local NewY = math.clamp(FrameSize.Y.Offset + Delta.Y, Library.MinSize.Y, math.huge)
             UI.Size = UDim2.new(FrameSize.X.Scale, NewX, FrameSize.Y.Scale, NewY)
@@ -4286,6 +4422,73 @@ function Library:CreateWindow(WindowInfo)
             MainFrame.Position = UDim2.new(0.5, -MainFrame.Size.X.Offset / 2, 0.5, -MainFrame.Size.Y.Offset / 2)
         end
 
+        local function UpdateFitScale(Recenter: boolean?)
+            local Camera = workspace.CurrentCamera
+            if not (Camera and MainFrame and MainFrame.Parent) then
+                return
+            end
+
+            local Viewport = Camera.ViewportSize
+            if Viewport.X <= 5 or Viewport.Y <= 5 then
+                return
+            end
+
+            local Width = math.max(1, MainFrame.Size.X.Offset)
+            local Height = math.max(1, MainFrame.Size.Y.Offset)
+            local Scale = math.clamp(math.min((Viewport.X - 16) / Width, (Viewport.Y - 16) / Height, 1), 0.3, 1)
+
+            Library.FitScale = Scale
+            MainScale.Scale = Scale
+
+            if Recenter then
+                MainFrame.Position = UDim2.new(0.5, -Width * Scale / 2, 0.5, -Height * Scale / 2)
+                return
+            end
+
+            task.defer(function()
+                if not (MainFrame and MainFrame.Parent) then
+                    return
+                end
+
+                local Bound = ScreenGui.AbsoluteSize
+                local Size = MainFrame.AbsoluteSize
+                local Pos = MainFrame.Position
+                local X = Pos.X.Scale * Bound.X + Pos.X.Offset
+                local Y = Pos.Y.Scale * Bound.Y + Pos.Y.Offset
+                local ClampedX = math.clamp(X, 0, math.max(0, Bound.X - Size.X))
+                local ClampedY = math.clamp(Y, 0, math.max(0, Bound.Y - Size.Y))
+
+                if ClampedX ~= X or ClampedY ~= Y then
+                    MainFrame.Position = UDim2.fromOffset(ClampedX, ClampedY)
+                end
+            end)
+        end
+
+        local CameraConnection
+        local function BindCamera()
+            if CameraConnection then
+                CameraConnection:Disconnect()
+                CameraConnection = nil
+            end
+
+            local Camera = workspace.CurrentCamera
+            if Camera then
+                CameraConnection = Library:GiveSignal(Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+                    UpdateFitScale(false)
+                end))
+            end
+        end
+
+        BindCamera()
+        UpdateFitScale(WindowInfo.Center)
+        Library:GiveSignal(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+            BindCamera()
+            UpdateFitScale(false)
+        end))
+        Library:GiveSignal(MainFrame:GetPropertyChangedSignal("Size"):Connect(function()
+            UpdateFitScale(false)
+        end))
+
         local TopBar = New("Frame", {
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 48),
@@ -5527,9 +5730,9 @@ function Library:CreateWindow(WindowInfo)
         ModalElement.Modal = false
 
         if Library.Toggled then
-            MainScale.Scale = 0.94
+            MainScale.Scale = 0.94 * Library.FitScale
             TweenService:Create(MainScale, Library.NotifyTweenInfo, {
-                Scale = 1,
+                Scale = Library.FitScale,
             }):Play()
         end
 
