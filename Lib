@@ -28,6 +28,9 @@ local Buttons = {}
 local Toggles = {}
 local Options = {}
 
+local DEFAULT_MIN_SIZE = Vector2.new(360, 220)
+local DEFAULT_MIN_SIZE_MOBILE = Vector2.new(360, 200)
+
 local Library = {
     LocalPlayer = LocalPlayer,
     DevicePlatform = nil,
@@ -67,7 +70,7 @@ local Library = {
     Signals = {},
     UnloadSignals = {},
 
-    MinSize = Vector2.new(480, 300),
+    MinSize = DEFAULT_MIN_SIZE,
     DPIScale = 1,
     ContentScaleValue = 1,
     FitScale = 1,
@@ -99,17 +102,17 @@ local Library = {
 if RunService:IsStudio() then
     if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
         Library.IsMobile = true
-        Library.MinSize = Vector2.new(480, 240)
+        Library.MinSize = DEFAULT_MIN_SIZE_MOBILE
     else
         Library.IsMobile = false
-        Library.MinSize = Vector2.new(480, 300)
+        Library.MinSize = DEFAULT_MIN_SIZE
     end
 else
     pcall(function()
         Library.DevicePlatform = UserInputService:GetPlatform()
     end)
     Library.IsMobile = (Library.DevicePlatform == Enum.Platform.Android or Library.DevicePlatform == Enum.Platform.IOS)
-    Library.MinSize = Library.IsMobile and Vector2.new(480, 240) or Vector2.new(480, 300)
+    Library.MinSize = Library.IsMobile and DEFAULT_MIN_SIZE_MOBILE or DEFAULT_MIN_SIZE
 end
 
 local Templates = {
@@ -1313,10 +1316,7 @@ function Library:AddTooltip(InfoStr: string, DisabledInfoStr: string, HoverInsta
             and Library:MouseIsOverFrame(HoverInstance, Mouse)
             and not (CurrentMenu and Library:MouseIsOverFrame(CurrentMenu.Menu, Mouse))
         do
-            TooltipLabel.Position = UDim2.fromOffset(
-                Mouse.X + (Library.ShowCustomCursor and 8 or 14),
-                Mouse.Y + (Library.ShowCustomCursor and 8 or 12)
-            )
+            TooltipLabel.Position = UDim2.fromOffset(Mouse.X + 14, Mouse.Y + 12)
 
             RunService.RenderStepped:Wait()
         end
@@ -4265,7 +4265,6 @@ function Library:CreateWindow(WindowInfo)
 
     Library.CornerRadius = WindowInfo.CornerRadius
     Library:SetNotifySide(WindowInfo.NotifySide)
-    Library.ShowCustomCursor = WindowInfo.ShowCustomCursor
     Library.Scheme.Font = WindowInfo.Font
     Library.ToggleKeybind = WindowInfo.ToggleKeybind
     pcall(function()
@@ -4566,25 +4565,26 @@ function Library:CreateWindow(WindowInfo)
                 Color = "OutlineColor",
                 Parent = Button,
             })
-        
-            local function Bar(Rotation: number)
+
+            -- Icons are drawn with Frames so they never depend on the Lucide download.
+            local function Bar(Rotation: number, Length: number)
                 New("Frame", {
                     AnchorPoint = Vector2.new(0.5, 0.5),
                     BackgroundColor3 = "FontColor",
                     Position = UDim2.fromScale(0.5, 0.5),
                     Rotation = Rotation,
-                    Size = UDim2.fromOffset(IconName == "x" and 14 or 12, 2),
+                    Size = UDim2.fromOffset(Length, 2),
                     Parent = Button,
                 })
             end
-        
+
             if IconName == "minus" then
-                Bar(0)
+                Bar(0, 12)
             elseif IconName == "x" then
-                Bar(45)
-                Bar(-45)
+                Bar(45, 14)
+                Bar(-45, 14)
             end
-        
+
             Button.MouseEnter:Connect(function()
                 TweenService:Create(Button, Library.TweenInfo, {
                     BackgroundColor3 = Library:GetBetterColor(Library.Scheme.MainColor, 8),
@@ -4595,7 +4595,7 @@ function Library:CreateWindow(WindowInfo)
                     BackgroundColor3 = Library.Scheme.MainColor,
                 }):Play()
             end)
-        
+
             return Button
         end
 
@@ -5667,10 +5667,6 @@ function Library:CreateWindow(WindowInfo)
         MainFrame.Visible = false
         ModalElement.Modal = false
 
-        pcall(function()
-            RunService:UnbindFromRenderStep("ShowCursor")
-        end)
-        Cursor.Visible = false
         TooltipLabel.Visible = false
         for _, Option in pairs(Library.Options) do
             if Option.Type == "ColorPicker" then
@@ -5698,26 +5694,7 @@ function Library:CreateWindow(WindowInfo)
             TweenService:Create(MainScale, Library.NotifyTweenInfo, {
                 Scale = Library.FitScale,
             }):Play()
-        end
-
-        if Library.Toggled and not Library.IsMobile then
-            local OldMouseIconEnabled = UserInputService.MouseIconEnabled
-            pcall(function()
-                RunService:UnbindFromRenderStep("ShowCursor")
-            end)
-            RunService:BindToRenderStep("ShowCursor", Enum.RenderPriority.Last.Value, function()
-                UserInputService.MouseIconEnabled = not Library.ShowCustomCursor
-
-                Cursor.Position = UDim2.fromOffset(Mouse.X, Mouse.Y)
-                Cursor.Visible = Library.ShowCustomCursor
-
-                if not (Library.Toggled and ScreenGui and ScreenGui.Parent) then
-                    UserInputService.MouseIconEnabled = OldMouseIconEnabled
-                    Cursor.Visible = false
-                    RunService:UnbindFromRenderStep("ShowCursor")
-                end
-            end)
-        elseif not Library.Toggled then
+        else
             Library:Minimize()
         end
     end
