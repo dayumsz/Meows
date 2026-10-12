@@ -4773,7 +4773,7 @@ function Library:CreateWindow(WindowInfo)
 
             Library:Notify({
                 Title = WindowInfo.Title,
-                Description = "Pressione " .. KeyText() .. " para abrir ou minimizar a interface",
+                Description = "Press " .. KeyText() .. " to open or minimize",
                 Time = 6,
             })
         end)
