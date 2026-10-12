@@ -1123,10 +1123,10 @@ function Library:AddContextMenu(
             AutomaticCanvasSize = List == 2 and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
             AutomaticSize = List == 1 and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
             BackgroundColor3 = "BackgroundColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
             BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
             CanvasSize = UDim2.fromOffset(0, 0),
+            ClipsDescendants = true,
             ScrollBarImageColor3 = "OutlineColor",
             ScrollBarThickness = List == 2 and 2 or 0,
             Size = typeof(Size) == "function" and Size() or Size,
@@ -1142,8 +1142,8 @@ function Library:AddContextMenu(
     else
         Menu = New("Frame", {
             BackgroundColor3 = "BackgroundColor",
-            BorderColor3 = "OutlineColor",
-            BorderSizePixel = 1,
+            BorderSizePixel = 0,
+            ClipsDescendants = true,
             Size = typeof(Size) == "function" and Size() or Size,
             Visible = false,
             ZIndex = 10,
@@ -1152,6 +1152,24 @@ function Library:AddContextMenu(
             DPIExclude = {
                 Position = true,
             },
+        })
+    end
+
+    New("UICorner", {
+        CornerRadius = UDim.new(0, math.max(Library.CornerRadius - 2, 0)),
+        Parent = Menu,
+    })
+    New("UIStroke", {
+        Color = "OutlineColor",
+        Parent = Menu,
+    })
+    if List == 2 then
+        New("UIPadding", {
+            PaddingBottom = UDim.new(0, 4),
+            PaddingLeft = UDim.new(0, 4),
+            PaddingRight = UDim.new(0, 4),
+            PaddingTop = UDim.new(0, 4),
+            Parent = Menu,
         })
     end
 
@@ -1192,13 +1210,13 @@ function Library:AddContextMenu(
                 math.floor(Holder.AbsolutePosition.Y + Offset[2])
             )
         end
+        if typeof(ActiveCallback) == "function" then
+            Library:SafeCallback(ActiveCallback, true)
+        end
         if typeof(Table.Size) == "function" then
             Menu.Size = Table.Size()
         else
             Menu.Size = ApplyDPIScale(Table.Size)
-        end
-        if typeof(ActiveCallback) == "function" then
-            Library:SafeCallback(ActiveCallback, true)
         end
 
         Menu.Visible = true
@@ -3563,13 +3581,19 @@ do
             })
         end
 
+        local Buttons = {}
+
+        local function ItemTextSize()
+            return ApplyTextScale(14 * (Library.ContentScaleValue or 1))
+        end
+
         local MenuTable = Library:AddContextMenu(
             Display,
             function()
                 return UDim2.fromOffset(Display.AbsoluteSize.X, 0)
             end,
             function()
-                return { 0.5, Display.AbsoluteSize.Y + 1.5 }
+                return { 0.5, Display.AbsoluteSize.Y + 4 }
             end,
             2,
             function(Active: boolean)
@@ -3580,6 +3604,13 @@ do
                     SearchBox.Text = ""
                     SearchBox.Visible = Active
                 end
+                if Active then
+                    for Button, _ in pairs(Buttons) do
+                        Button.Size = UDim2.new(1, 0, 0, 21 * (Library.ContentScaleValue or 1))
+                        Button.TextSize = ItemTextSize()
+                    end
+                    Dropdown:RecalculateListSize()
+                end
             end
         )
         Dropdown.Menu = MenuTable
@@ -3589,11 +3620,9 @@ do
         })
 
         function Dropdown:RecalculateListSize(Count)
-            local Y = math.clamp(
-                (Count or GetTableSize(Dropdown.Values)) * (21 * Library.DPIScale * Library.ContentScaleValue),
-                0,
-                Info.MaxVisibleDropdownItems * (21 * Library.DPIScale * Library.ContentScaleValue)
-            )
+            local Row = 21 * Library.DPIScale * Library.ContentScaleValue
+            local Y = math.clamp((Count or GetTableSize(Dropdown.Values)) * Row, 0, Info.MaxVisibleDropdownItems * Row)
+                + 8 * Library.DPIScale
 
             MenuTable:SetSize(function()
                 return UDim2.fromOffset(Display.AbsoluteSize.X, Y)
@@ -3659,7 +3688,6 @@ do
             return Dropdown.Value and 1 or 0
         end
 
-        local Buttons = {}
         function Dropdown:BuildDropdownList()
             local Values = Dropdown.Values
             local DisabledValues = Dropdown.DisabledValues
@@ -3689,6 +3717,11 @@ do
                     TextTransparency = 0.5,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Parent = MenuTable.Menu,
+                })
+                Button.TextSize = ItemTextSize()
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, math.max(Library.CornerRadius - 5, 0)),
+                    Parent = Button,
                 })
                 New("UIPadding", {
                     PaddingLeft = UDim.new(0, 7),
@@ -4392,6 +4425,7 @@ function Library:CreateWindow(WindowInfo)
             Parent = ContentHolder,
         })
 
+        local BaseContentWidth = math.max(1, WindowInfo.Size.X.Offset)
         local BaseContentHeight = math.max(1, WindowInfo.Size.Y.Offset)
         local LastContentScale = nil
 
@@ -4400,12 +4434,20 @@ function Library:CreateWindow(WindowInfo)
                 return
             end
 
+            local Width = MainFrame.Size.X.Offset
             local Height = MainFrame.Size.Y.Offset
-            if Height <= 0 then
+            if Width <= 0 or Height <= 0 then
                 return
             end
 
-            local Scale = math.clamp(Height / (BaseContentHeight * Library.DPIScale), 0.55, 1.5)
+            local Scale = math.clamp(
+                math.min(
+                    Width / (BaseContentWidth * Library.DPIScale),
+                    Height / (BaseContentHeight * Library.DPIScale)
+                ),
+                0.55,
+                1.5
+            )
             if LastContentScale and math.abs(Scale - LastContentScale) < 0.0005 then
                 return
             end
