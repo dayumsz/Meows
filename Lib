@@ -140,6 +140,7 @@ local Templates = {
         TextColor3 = "FontColor",
         TextTruncate = Enum.TextTruncate.AtEnd,
         ClipsDescendants = true,
+        AutoLocalize = false,
     },
     TextButton = {
         AutoButtonColor = false,
@@ -149,6 +150,7 @@ local Templates = {
         TextColor3 = "FontColor",
         TextTruncate = Enum.TextTruncate.AtEnd,
         ClipsDescendants = true,
+        AutoLocalize = false,
     },
     TextBox = {
         BorderSizePixel = 0,
@@ -159,6 +161,7 @@ local Templates = {
         end,
         Text = "",
         TextColor3 = "FontColor",
+        AutoLocalize = false,
     },
     UIListLayout = {
         SortOrder = Enum.SortOrder.LayoutOrder,
