@@ -487,11 +487,44 @@ function Library:GiveSignal(Connection: RBXScriptConnection)
     return Connection
 end
 
+local function HttpGet(Url)
+    local Success, Result = pcall(function()
+        return game:HttpGet(Url)
+    end)
+
+    if Success and typeof(Result) == "string" and #Result > 0 then
+        return Result
+    end
+
+    local Request = request or http_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request)
+    if typeof(Request) == "function" then
+        local Ok, Response = pcall(Request, { Url = Url, Method = "GET" })
+
+        if Ok and typeof(Response) == "table" and typeof(Response.Body) == "string" and #Response.Body > 0 then
+            if Response.Success == true or Response.StatusCode == 200 then
+                return Response.Body
+            end
+        end
+    end
+
+    error("HttpGet failed: " .. Url)
+end
+
 local FetchIcons, Icons = pcall(function()
-    return loadstring(
-        game:HttpGet("https://raw.githubusercontent.com/deividcomsono/lucide-roblox-direct/refs/heads/main/source.lua")
-    )()
+    local Source = HttpGet("https://raw.githubusercontent.com/deividcomsono/lucide-roblox-direct/refs/heads/main/source.lua")
+
+    shared.MeowHttpGet = HttpGet
+    Source = Source:gsub("game:HttpGet%(", "shared.MeowHttpGet(")
+
+    local Chunk, CompileError = loadstring(Source)
+    assert(Chunk, CompileError)
+
+    return Chunk()
 end)
+
+if not FetchIcons then
+    warn("[Meow] Icons failed to load: " .. tostring(Icons))
+end
 function Library:GetIcon(IconName: string)
     if not FetchIcons then
         return
@@ -6392,6 +6425,15 @@ end
 
 function SaveManager:Delete(Name: string)
     return pcall(delfile, SaveManager.Folder .. "/" .. Name .. ".json")
+end
+
+function SaveManager:RefreshConfigList()
+    local ConfigList = Options.MeowConfigList
+
+    if ConfigList then
+        ConfigList:SetValues(SaveManager:List())
+        ConfigList:SetValue(nil)
+    end
 end
 
 function SaveManager:SetAutoLoad(Name: string)
